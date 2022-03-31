@@ -5,7 +5,7 @@ resource "aws_vpc" "k8s" {
   enable_dns_hostnames = true
 
   tags = {
-    Name = "k8s"
+    Name = var.vpc_name
   }
 }
 
