@@ -11,9 +11,9 @@ output "nat_ips" {
 }
 
 output "nat_gateway" {
-  value = aws_nat_gateway.k8s_nat.*.id
+  value = aws_nat_gateway.main_nat.*.id
 }
 
 output "vpc_id" {
-  value = aws_vpc.k8s.id
+  value = aws_vpc.main.id
 }

@@ -1,6 +1,6 @@
 data "aws_availability_zones" "available" {}
 
-resource "aws_vpc" "k8s" {
+resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
 
@@ -11,7 +11,7 @@ resource "aws_vpc" "k8s" {
 
 resource "aws_subnet" "private" {
   count             = 4
-  vpc_id            = aws_vpc.k8s.id
+  vpc_id            = aws_vpc.main.id
   availability_zone = element(data.aws_availability_zones.available.names, count.index)
   cidr_block        = cidrsubnet(var.vpc_cidr, 4, count.index + 1)
 
@@ -22,7 +22,7 @@ resource "aws_subnet" "private" {
 
 resource "aws_subnet" "public" {
   count                   = 4
-  vpc_id                  = aws_vpc.k8s.id
+  vpc_id                  = aws_vpc.main.id
   availability_zone       = element(data.aws_availability_zones.available.names, count.index)
   cidr_block              = cidrsubnet(var.vpc_cidr, 12, count.index)
   map_public_ip_on_launch = true
@@ -32,20 +32,20 @@ resource "aws_subnet" "public" {
   }
 }
 
-resource "aws_internet_gateway" "k8s_itg" {
-  vpc_id = aws_vpc.k8s.id
+resource "aws_internet_gateway" "main_itg" {
+  vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "k8s_itg"
+    Name = "main_itg"
   }
 }
 
 resource "aws_route_table" "public_routes" {
-  vpc_id = aws_vpc.k8s.id
+  vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.k8s_itg.id
+    gateway_id = aws_internet_gateway.main_itg.id
   }
 }
 
@@ -64,7 +64,7 @@ resource "aws_eip" "nat_ips" {
   }
 }
 
-resource "aws_nat_gateway" "k8s_nat" {
+resource "aws_nat_gateway" "main_nat" {
   count         = length(var.private_subnets)
   allocation_id = var.nat_ips[count.index]
   subnet_id     = var.public_subnets[count.index]
@@ -72,8 +72,8 @@ resource "aws_nat_gateway" "k8s_nat" {
 
 resource "aws_route_table" "private_routes" {
   count = length(var.private_subnets)
-  vpc_id     = aws_vpc.k8s.id
-  depends_on = [aws_nat_gateway.k8s_nat]
+  vpc_id     = aws_vpc.main.id
+  depends_on = [aws_nat_gateway.main_nat]
 
   route {
     cidr_block     = "0.0.0.0/0"
@@ -89,4 +89,9 @@ resource "aws_route_table_association" "private" {
   count          = length(var.private_subnets)
   subnet_id      = var.private_subnets[count.index]
   route_table_id = aws_route_table.private_routes[count.index].id
+}
+
+resource "aws_vpc_endpoint_route_table_association" "private_s3" {
+  route_table_id  = aws_route_table.private_routes[count.index].id
+  vpc_endpoint_id = aws_vpc_endpoint.s3.id
 }
